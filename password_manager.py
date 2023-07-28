@@ -1,0 +1,78 @@
+from cryptography.fernet import Fernet
+import hashlib
+import base64
+import os
+
+def generate_key(master_password):
+    key = hashlib.pbkdf2_hmac('sha256', master_password.encode(), b'salt', 100000)
+    return base64.urlsafe_b64encode(key)
+
+def encrypt_data(data, key):
+    cipher_suite = Fernet(key)
+    encrypted_data = cipher_suite.encrypt(data.encode())
+    return encrypted_data
+
+def decrypt_data(encrypted_data, key):
+    cipher_suite = Fernet(key)
+    decrypted_data = cipher_suite.decrypt(encrypted_data).decode()
+    return decrypted_data
+
+def register_user():
+    if os.path.exists("key.key"):
+        print("A master password already exists. Cannot register a new user.")
+        return
+
+    master_password = input("Enter your master password: ")
+    key = generate_key(master_password)
+    with open("key.key", "wb") as f:
+        f.write(key)
+    print("User registered successfully!")
+
+def authenticate_user():
+    if not os.path.exists("key.key"):
+        print("No master password exists. Please register a user first.")
+        return None
+
+    with open("key.key", "rb") as f:
+        key = f.read()
+
+    master_password = input("Enter your master password: ")
+    if key == generate_key(master_password):
+        return key
+    else:
+        print("Invalid master password. Please try again.")
+        return None
+
+def add_pass(key):
+    user = input("Username: ")
+    passw = input("Password: ")
+    encrypted_passw = encrypt_data(passw, key)
+    with open("passwords.txt", "a") as b:
+        b.write(f"\n{user}|{encrypted_passw.decode()}")
+
+def view_pass(key):
+    with open("passwords.txt", "r") as b:
+        print("   Name\tPassword")
+        for i, item in enumerate(b.read().split("\n")):
+            try:
+                username, encrypted_passw = item.split('|')
+                decrypted_passw = decrypt_data(encrypted_passw.encode(), key)
+                print(f"{i}) {username} | {decrypted_passw}")
+            except IndexError:
+                pass
+
+def remove_pass(index):
+    with open("passwords.txt", "r") as b:
+        information = b.readlines()
+
+    information.pop(index)
+    newinformation = "".join(information)
+
+    with open("passwords.txt", "w") as b:
+        b.write(newinformation)
+
+    print("Successfully removed the item from the list.")
+
+def check_pass_strength(passw):
+    # Your password strength checking logic (unchanged)
+    # ...
