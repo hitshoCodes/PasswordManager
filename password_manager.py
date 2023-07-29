@@ -4,8 +4,8 @@ import base64
 import os
 
 def generate_key(master_password):
-    key = hashlib.pbkdf2_hmac('sha256', master_password.encode(), b'salt', 100000)
-    return base64.urlsafe_b64encode(key)
+    hashed_key = hashlib.sha256(master_password.encode()).digest()
+    return base64.urlsafe_b64encode(hashed_key).decode()
 
 def encrypt_data(data, key):
     cipher_suite = Fernet(key)
@@ -25,7 +25,7 @@ def register_user():
     master_password = input("Enter your master password: ")
     key = generate_key(master_password)
     with open("key.key", "wb") as f:
-        f.write(key)
+        f.write(key.encode())
     print("User registered successfully!")
 
 def authenticate_user():
@@ -33,12 +33,14 @@ def authenticate_user():
         print("No master password exists. Please register a user first.")
         return None
 
-    with open("key.key", "rb") as f:
-        key = f.read()
-
     master_password = input("Enter your master password: ")
-    if key == generate_key(master_password):
-        return key
+    hashed_input_key = generate_key(master_password).encode()
+
+    with open("key.key", "rb") as f:
+        stored_key = f.read()
+
+    if hashed_input_key == stored_key:
+        return hashed_input_key
     else:
         print("Invalid master password. Please try again.")
         return None
@@ -51,9 +53,16 @@ def add_pass(key):
         b.write(f"\n{user}|{encrypted_passw.decode()}")
 
 def view_pass(key):
+    if not os.path.exists("passwords.txt"):
+        print("Passwords file not found. No passwords have been added yet.")
+        return
+
     with open("passwords.txt", "r") as b:
-        print("   Name\tPassword")
-        for i, item in enumerate(b.read().split("\n")):
+        lines = b.read().split("\n")
+
+    print("   Name\tPassword")
+    for i, item in enumerate(lines):
+        if item.strip():  # Skip empty lines
             try:
                 username, encrypted_passw = item.split('|')
                 decrypted_passw = decrypt_data(encrypted_passw.encode(), key)
@@ -73,6 +82,36 @@ def remove_pass(index):
 
     print("Successfully removed the item from the list.")
 
-def check_pass_strength(passw):
-    # Your password strength checking logic (unchanged)
-    # ...
+def clear_screen():
+    os.system("cls" if os.name == "nt" else "clear")
+
+# Main code
+if __name__ == "__main__":
+    if not os.path.exists("key.key"):
+        print("No master password exists. Please register a user first.")
+        register_user()
+
+    key = authenticate_user()
+    if key:
+        while True:
+            clear_screen()
+            print("\nMenu:")
+            print("1) Add Password")
+            print("2) View Passwords")
+            print("3) Remove Password")
+            print("4) Exit")
+            choice = input("Enter your choice: ")
+
+            if choice == '1':
+                add_pass(key)
+            elif choice == '2':
+                view_pass(key)
+            elif choice == '3':
+                index = int(input("Enter the index of the password to remove: "))
+                remove_pass(index)
+            elif choice == '4':
+                print("Exiting...")
+                break
+            else:
+                print("Invalid choice. Please try again.")
+            input("Press Enter to continue...")
